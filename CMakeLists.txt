@@ -73,5 +73,8 @@ if(BUILD_UNIT_TESTS)
         cryptokit
         GTest::gtest_main
     )
+
+    include(GoogleTest)
+    gtest_discover_tests(cryptokit_ut)
 endif()
 
