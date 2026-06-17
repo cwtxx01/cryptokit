@@ -1,3 +1,3 @@
 #include "cryptokit/digist.hpp"
 
-namespace cryptokit {}
+namespace ckit::digist {}

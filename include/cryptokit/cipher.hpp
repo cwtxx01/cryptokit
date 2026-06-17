@@ -19,6 +19,8 @@ enum class Mode : char { gcm, ecb, cbc };
 
 enum class Bits : int { k128 = 128 / 8, k192 = 192 / 8, k256 = 256 / 8 };
 
+namespace detail {
+
 using SmartCtx =
     std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>;
 
@@ -48,6 +50,7 @@ struct AesBase {
     std::vector<Byte> key_;
     std::vector<Byte> iv_;
 };
+}  // namespace detail
 
 /**
  * @brief 基于OpenSSL库中EVP高级抽象层的Aes对称加密算法对象封装,
@@ -60,7 +63,7 @@ struct AesBase {
  * @tparam B 密钥长度枚举值
  **/
 template <Mode M, Bits B>
-class Aes : private AesBase {
+class Aes : private detail::AesBase {
     template <Mode, Bits>
     friend class Aes;
 
@@ -130,7 +133,7 @@ private:
     std::optional<std::vector<Byte>> PerformCipher(BytesView data,
                                                    BytesView secret_key,
                                                    BytesView iv) {
-        auto ctx = MakeSmartCtx(EVP_CIPHER_CTX_new());
+        auto ctx = detail::MakeSmartCtx(EVP_CIPHER_CTX_new());
         if (!ctx) {
             return std::nullopt;
         }

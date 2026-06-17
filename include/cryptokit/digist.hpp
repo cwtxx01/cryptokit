@@ -3,7 +3,8 @@
 
 #include <memory>
 
-namespace cryptokit {
+namespace ckit {
+namespace digist {
 class Digist {
 public:
     Digist();
@@ -14,6 +15,6 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
-}  // namespace cryptokit
-
+}  // namespace digist
+}  // namespace ckit
 #endif

@@ -3,7 +3,8 @@
 
 #include <memory>
 
-namespace cryptokit {
+namespace ckit {
+namespace pkey {
 class Pkey {
 public:
     Pkey();
@@ -14,6 +15,6 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
-}  // namespace cryptokit
-
+}  // namespace pkey
+}  // namespace ckit
 #endif

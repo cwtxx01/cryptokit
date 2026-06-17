@@ -1,3 +1,3 @@
 #include "cryptokit/pkey.hpp"
 
-namespace cryptokit {}
+namespace ckit::pkey {}

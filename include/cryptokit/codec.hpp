@@ -3,17 +3,8 @@
 
 #include <memory>
 
-namespace cryptokit {
-class Codec {
-public:
-    Codec();
-
-    ~Codec();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-}  // namespace cryptokit
+namespace ckit {
+namespace codec {}  // namespace codec
+}  // namespace ckit
 
 #endif

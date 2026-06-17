@@ -1,3 +1,3 @@
 #include "cryptokit/codec.hpp"
 
-namespace cryptokit {}
+namespace ckit::codec {}
