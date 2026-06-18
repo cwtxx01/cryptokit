@@ -150,15 +150,11 @@ private:
     std::string prefix_{};
     Character ctrl_{Character::upper};
 };
-
-struct Jwt {};
 }  // namespace codec
 
 using codec::Base64;
 
 using codec::Hex;
-
-using codec::Jwt;
 }  // namespace ckit
 
 #endif

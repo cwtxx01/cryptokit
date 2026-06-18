@@ -239,15 +239,18 @@ private:
 };
 }  // namespace cipher
 
-using Aes128cbc = cipher::Aes<cipher::Mode::cbc, cipher::Bits::k128>;
-using Aes192cbc = cipher::Aes<cipher::Mode::cbc, cipher::Bits::k192>;
-using Aes256cbc = cipher::Aes<cipher::Mode::cbc, cipher::Bits::k256>;
-using Aes128ecb = cipher::Aes<cipher::Mode::ecb, cipher::Bits::k128>;
-using Aes192ecb = cipher::Aes<cipher::Mode::ecb, cipher::Bits::k192>;
-using Aes256ecb = cipher::Aes<cipher::Mode::ecb, cipher::Bits::k256>;
-using Aes128gcm = cipher::Aes<cipher::Mode::gcm, cipher::Bits::k128>;
-using Aes192gcm = cipher::Aes<cipher::Mode::gcm, cipher::Bits::k192>;
-using Aes256gcm = cipher::Aes<cipher::Mode::gcm, cipher::Bits::k256>;
+using AesMode = cipher::Mode;
+using AesBits = cipher::Bits;
+
+using Aes128cbc = cipher::Aes<AesMode::cbc, AesBits::k128>;
+using Aes192cbc = cipher::Aes<AesMode::cbc, AesBits::k192>;
+using Aes256cbc = cipher::Aes<AesMode::cbc, AesBits::k256>;
+using Aes128ecb = cipher::Aes<AesMode::ecb, AesBits::k128>;
+using Aes192ecb = cipher::Aes<AesMode::ecb, AesBits::k192>;
+using Aes256ecb = cipher::Aes<AesMode::ecb, AesBits::k256>;
+using Aes128gcm = cipher::Aes<AesMode::gcm, AesBits::k128>;
+using Aes192gcm = cipher::Aes<AesMode::gcm, AesBits::k192>;
+using Aes256gcm = cipher::Aes<AesMode::gcm, AesBits::k256>;
 }  // namespace ckit
 
 #endif
