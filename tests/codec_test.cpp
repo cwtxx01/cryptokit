@@ -18,15 +18,13 @@ TEST(Base64Test, encode_decode_stream) {
 
     auto enc_base64 = ckit::Base64(ckit::Crypto::enc);
     EXPECT_EQ(enc_base64.GetStatus(), ckit::Base64::Status::good);
-    EXPECT_EQ(enc_base64.Update(full_str).GetStatus(),
-              ckit::Base64::Status::good);
+    EXPECT_EQ((enc_base64 << full_str).GetStatus(), ckit::Base64::Status::good);
     auto enc_text = enc_base64.Out();
     EXPECT_EQ(enc_base64.GetStatus(), ckit::codec::Base64::Status::over);
 
     auto dec_base64 = ckit::Base64(ckit::Crypto::dec);
     EXPECT_EQ(dec_base64.GetStatus(), ckit::Base64::Status::good);
-    EXPECT_EQ(dec_base64.Update(enc_text).GetStatus(),
-              ckit::Base64::Status::good);
+    EXPECT_EQ((dec_base64 << enc_text).GetStatus(), ckit::Base64::Status::good);
     auto dec_text = dec_base64.Out();
     EXPECT_EQ(dec_base64.GetStatus(), ckit::codec::Base64::Status::over);
 
@@ -49,7 +47,7 @@ TEST(Base64Test, encode_decode_stream_long) {
 
     for (size_t l = 0, r = 10 > full_str.size() ? full_str.size() : 10;
          l < full_str.size();) {
-        EXPECT_EQ(enc_base64.Update(full_str.substr(l, r - l)).GetStatus(),
+        EXPECT_EQ((enc_base64 << full_str.substr(l, r - l)).GetStatus(),
                   ckit::Base64::Status::good);
         l = r;
         r += 10;
@@ -64,7 +62,7 @@ TEST(Base64Test, encode_decode_stream_long) {
     EXPECT_EQ(dec_base64.GetStatus(), ckit::Base64::Status::good);
     for (size_t l = 0, r = 10 > enc_text.size() ? enc_text.size() : 10;
          l < enc_text.size();) {
-        EXPECT_EQ(dec_base64.Update(enc_text.substr(l, r - l)).GetStatus(),
+        EXPECT_EQ((dec_base64 << enc_text.substr(l, r - l)).GetStatus(),
                   ckit::Base64::Status::good);
         l = r;
         r += 10;
@@ -94,7 +92,7 @@ TEST(Base64Test, encode_decode_stream_mime) {
 
     for (size_t l = 0, r = 10 > full_str.size() ? full_str.size() : 10;
          l < full_str.size();) {
-        EXPECT_EQ(enc_base64.Update(full_str.substr(l, r - l)).GetStatus(),
+        EXPECT_EQ((enc_base64 << full_str.substr(l, r - l)).GetStatus(),
                   ckit::Base64::Status::good);
         l = r;
         r += 10;
@@ -109,7 +107,7 @@ TEST(Base64Test, encode_decode_stream_mime) {
     EXPECT_EQ(dec_base64.GetStatus(), ckit::Base64::Status::good);
     for (size_t l = 0, r = 10 > enc_text.size() ? enc_text.size() : 10;
          l < enc_text.size();) {
-        EXPECT_EQ(dec_base64.Update(enc_text.substr(l, r - l)).GetStatus(),
+        EXPECT_EQ((dec_base64 << enc_text.substr(l, r - l)).GetStatus(),
                   ckit::Base64::Status::good);
         l = r;
         r += 10;

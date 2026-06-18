@@ -36,7 +36,9 @@ struct Base64 {
 
     Base64& Init(Crypto codec, bool mime = false, size_t blk_size = 1024);
 
-    Base64& Update(BytesView stream);
+    Base64& operator<<(BytesView stream);
+
+    Base64& operator>>(std::string& out);
 
     std::string Out();
 

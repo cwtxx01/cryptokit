@@ -204,10 +204,15 @@ Base64& Base64::Init(Crypto codec, bool mime, size_t blk_size) {
     return *this;
 }
 
-Base64& Base64::Update(BytesView stream) {
+Base64& Base64::operator<<(BytesView stream) {
     if (status_ == Status::good) {
         status_ = impl_->Update(stream);
     }
+    return *this;
+}
+
+Base64& Base64::operator>>(std::string& out) {
+    out = Out();
     return *this;
 }
 
