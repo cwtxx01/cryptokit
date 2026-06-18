@@ -148,22 +148,29 @@ private:
         std::vector<Byte> bytes(data.size() + EVP_MAX_BLOCK_LENGTH + k_tag_len);
 
         if constexpr (Op == Crypto::enc) {  // 加密
-            RETURN_NULLOPT_IF_ZERO(EVP_EncryptInit_ex(
-                ctx.get(), cipher, nullptr, secret_key.data(), iv.data()));
+            if (!EVP_EncryptInit_ex(ctx.get(), cipher, nullptr,
+                                    secret_key.data(), iv.data())) {
+                return std::nullopt;
+            }
 
             int update_out_len = 0;
-            RETURN_NULLOPT_IF_ZERO(EVP_EncryptUpdate(ctx.get(), bytes.data(),
-                                                     &update_out_len,
-                                                     data.data(), data.size()));
+            if (!EVP_EncryptUpdate(ctx.get(), bytes.data(), &update_out_len,
+                                   data.data(), data.size())) {
+                return std::nullopt;
+            }
 
             int final_out_len = 0;
-            RETURN_NULLOPT_IF_ZERO(EVP_EncryptFinal_ex(
-                ctx.get(), bytes.data() + update_out_len, &final_out_len));
+            if (!EVP_EncryptFinal_ex(ctx.get(), bytes.data() + update_out_len,
+                                     &final_out_len)) {
+                return std::nullopt;
+            }
 
             if constexpr (M == Mode::gcm) {
-                RETURN_NULLOPT_IF_ZERO(EVP_CIPHER_CTX_ctrl(
-                    ctx.get(), EVP_CTRL_GCM_GET_TAG, k_tag_len,
-                    bytes.data() + update_out_len + final_out_len));
+                if (!EVP_CIPHER_CTX_ctrl(
+                        ctx.get(), EVP_CTRL_GCM_GET_TAG, k_tag_len,
+                        bytes.data() + update_out_len + final_out_len)) {
+                    return std::nullopt;
+                }
                 bytes.resize(update_out_len + final_out_len + k_tag_len);
             } else {
                 bytes.resize(update_out_len + final_out_len);
@@ -173,28 +180,36 @@ private:
                 return std::nullopt;
             }
 
-            RETURN_NULLOPT_IF_ZERO(EVP_DecryptInit_ex(
-                ctx.get(), cipher, nullptr, secret_key.data(), iv.data()));
+            if (!EVP_DecryptInit_ex(ctx.get(), cipher, nullptr,
+                                    secret_key.data(), iv.data())) {
+                return std::nullopt;
+            }
 
             int update_out_len = 0;
             if constexpr (M == Mode::gcm) {
-                RETURN_NULLOPT_IF_ZERO(
-                    EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
-                                      data.data(), data.size() - k_tag_len));
+                if (!EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
+                                       data.data(), data.size() - k_tag_len)) {
+                    return std::nullopt;
+                }
 
                 auto tag_idx = data.data() + data.size() - k_tag_len;
-                RETURN_NULLOPT_IF_ZERO(
-                    EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG,
-                                        k_tag_len, const_cast<Byte*>(tag_idx)));
+                if (!EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG,
+                                         k_tag_len,
+                                         const_cast<Byte*>(tag_idx))) {
+                    return std::nullopt;
+                }
             } else {
-                RETURN_NULLOPT_IF_ZERO(
-                    EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
-                                      data.data(), data.size()));
+                if (!EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
+                                       data.data(), data.size())) {
+                    return std::nullopt;
+                }
             }
 
             int final_out_len = 0;
-            RETURN_NULLOPT_IF_ZERO(EVP_DecryptFinal_ex(
-                ctx.get(), bytes.data() + update_out_len, &final_out_len));
+            if (!EVP_DecryptFinal_ex(ctx.get(), bytes.data() + update_out_len,
+                                     &final_out_len)) {
+                return std::nullopt;
+            }
 
             bytes.resize(update_out_len + final_out_len);
         }
