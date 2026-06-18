@@ -103,11 +103,11 @@ public:
     }
 
     std::optional<std::vector<Byte>> Encrypt(BytesView data) {
-        return PerformCipher<Crypto::Encryption>(data, key_, iv_);
+        return PerformCipher<Crypto::enc>(data, key_, iv_);
     }
 
     std::optional<std::vector<Byte>> Decrypt(BytesView data) {
-        return PerformCipher<Crypto::Decryption>(data, key_, iv_);
+        return PerformCipher<Crypto::dec>(data, key_, iv_);
     }
 
 private:
@@ -147,7 +147,7 @@ private:
 
         std::vector<Byte> bytes(data.size() + EVP_MAX_BLOCK_LENGTH + k_tag_len);
 
-        if constexpr (Op == Crypto::Encryption) {  // 加密
+        if constexpr (Op == Crypto::enc) {  // 加密
             RETURN_NULLOPT_IF_ZERO(EVP_EncryptInit_ex(
                 ctx.get(), cipher, nullptr, secret_key.data(), iv.data()));
 

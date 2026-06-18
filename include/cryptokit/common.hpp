@@ -10,7 +10,9 @@
 
 namespace ckit {
 
-enum class Crypto : bool { Encryption, Decryption };
+enum class Crypto : bool { enc, dec };
+
+enum class Character : bool { upper, lower };
 
 }  // namespace ckit
 
