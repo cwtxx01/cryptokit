@@ -3,6 +3,8 @@
 
 #include <array>
 #include <cstddef>
+#include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -64,6 +66,86 @@ public:
     constexpr size_t size() const noexcept { return len_; }
 
     constexpr bool empty() const noexcept { return len_ == 0; }
+
+    struct Iterator {
+        using iterator_category = std::random_access_iterator_tag;
+
+        using value_type = Byte;
+        using pointer = Byte*;
+        using const_pointer = const Byte*;
+        using reference = Byte&;
+        using const_reference = const Byte&;
+        using difference_type = std::ptrdiff_t;
+
+        Iterator(const_pointer ptr = nullptr) : p_(ptr) {}
+
+        const_reference operator*() const { return *p_; }
+
+        const_pointer operator->() const { return p_; }
+
+        Iterator& operator++() {
+            ++p_;
+            return *this;
+        }
+
+        Iterator operator++(int) {
+            auto tmp = *this;
+            ++(*this);
+            return tmp;
+        }
+
+        Iterator& operator--() {
+            --p_;
+            return *this;
+        }
+
+        Iterator operator--(int) {
+            auto tmp = *this;
+            --(*this);
+            return tmp;
+        }
+
+        Iterator& operator+=(difference_type n) {
+            p_ += n;
+            return *this;
+        }
+
+        Iterator& operator-=(difference_type n) {
+            p_ -= n;
+            return *this;
+        }
+
+        Iterator operator+(difference_type n) const { return Iterator(p_ + n); }
+
+        Iterator operator-(difference_type n) const { return Iterator(p_ - n); }
+
+        difference_type operator-(const Iterator& other) const {
+            return p_ - other.p_;
+        }
+
+        const_reference operator[](difference_type n) const { return p_[n]; }
+
+        bool operator==(const Iterator& other) const { return p_ == other.p_; }
+
+        bool operator!=(const Iterator& other) const {
+            return !(*this == other);
+        }
+
+        bool operator>(const Iterator& other) const { return p_ > other.p_; }
+
+        bool operator<(const Iterator& other) const { return p_ < other.p_; }
+
+        bool operator>=(const Iterator& other) const { return p_ >= other.p_; }
+
+        bool operator<=(const Iterator& other) const { return p_ <= other.p_; }
+
+    private:
+        const_pointer p_;
+    };
+
+    Iterator begin() const { return data_; }
+
+    Iterator end() const { return data_ + len_; }
 
 private:
     const Byte* data_{nullptr};
