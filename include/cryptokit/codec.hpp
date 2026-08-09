@@ -2,12 +2,14 @@
 #define CRYPTO_KIT_CODEC_HPP_
 
 #include <cctype>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 
 #include "cryptokit/byte_view.hpp"
 #include "cryptokit/common.hpp"
+
 
 namespace ckit {
 namespace codec {
