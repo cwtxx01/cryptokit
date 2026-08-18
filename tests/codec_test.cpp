@@ -213,6 +213,12 @@ TEST(Base64Test, rejects_malformed_static_and_stream_input) {
     decoder << std::string("Zm9v*===");
     EXPECT_EQ(decoder.GetStatus(), ckit::codec::Status::error);
     EXPECT_TRUE(decoder.Out().empty());
+
+    ckit::Base64 incomplete_decoder(ckit::Crypto::dec);
+    incomplete_decoder << std::string("Zg");
+    EXPECT_EQ(incomplete_decoder.GetStatus(), ckit::codec::Status::good);
+    EXPECT_TRUE(incomplete_decoder.Out().empty());
+    EXPECT_EQ(incomplete_decoder.GetStatus(), ckit::codec::Status::error);
 }
 
 TEST(Base64Test, finalization_is_idempotent_and_ignores_late_input) {

@@ -58,7 +58,7 @@ struct Base64Impl {
 
     virtual Status Update(BytesView stream) = 0;
 
-    virtual std::string Out() = 0;
+    virtual std::optional<std::string> Out() = 0;
 
     std::string out_{};
     SmartCtx ctx_{};
@@ -99,7 +99,7 @@ struct EncImpl : public Base64Impl {
         return Status::good;
     }
 
-    std::string Out() override {
+    std::optional<std::string> Out() override {
         auto cur_insert_pos = out_.size();
         out_.resize(out_.size() + std::max<size_t>(blk_size_, 80));
         int len = 0;
@@ -145,13 +145,17 @@ struct DecImpl : public Base64Impl {
         return Status::good;
     }
 
-    std::string Out() override {
+    std::optional<std::string> Out() override {
         auto cur_insert_pos = out_.size();
         out_.resize(out_.size() + std::max<size_t>(blk_size_, 80));
         int len = 0;
-        EVP_DecodeFinal(ctx_.get(),
-                        reinterpret_cast<Byte*>(out_.data() + cur_insert_pos),
-                        &len);
+        if (EVP_DecodeFinal(
+                ctx_.get(),
+                reinterpret_cast<Byte*>(out_.data() + cur_insert_pos),
+                &len) <= 0) {
+            out_.resize(cur_insert_pos);
+            return std::nullopt;
+        }
         out_.resize(cur_insert_pos + len);
         std::string res;
         res.swap(out_);
@@ -248,7 +252,12 @@ std::string Base64::Out() {
     }
 
     status_ = Status::over;
-    return impl_->Out();
+    auto result = impl_->Out();
+    if (!result) {
+        status_ = Status::error;
+        return {};
+    }
+    return std::move(*result);
 }
 
 Status Base64::GetStatus() const noexcept { return status_; }

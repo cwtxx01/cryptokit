@@ -2,7 +2,9 @@
 #define CRYPTO_KIT_CIPHER_HPP_
 
 #include <openssl/evp.h>
+#include <openssl/crypto.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -44,11 +46,32 @@ struct AesBase {
 
     AesBase(AesBase&&) noexcept = default;
 
-    ~AesBase() = default;
+    ~AesBase() { ClearKey(); }
 
-    AesBase& operator=(const AesBase&) = default;
+    AesBase& operator=(const AesBase& rhs) {
+        if (this != &rhs) {
+            ClearKey();
+            key_ = rhs.key_;
+            iv_ = rhs.iv_;
+        }
+        return *this;
+    }
 
-    AesBase& operator=(AesBase&&) noexcept = default;
+    AesBase& operator=(AesBase&& rhs) noexcept {
+        if (this != &rhs) {
+            ClearKey();
+            key_ = std::move(rhs.key_);
+            iv_ = std::move(rhs.iv_);
+        }
+        return *this;
+    }
+
+private:
+    void ClearKey() noexcept {
+        if (!key_.empty()) {
+            OPENSSL_cleanse(key_.data(), key_.size());
+        }
+    }
 };
 }  // namespace detail
 
@@ -64,9 +87,6 @@ struct AesBase {
  **/
 template <Mode M, Bits B>
 class Aes : private detail::AesBase {
-    template <Mode, Bits>
-    friend class Aes;
-
 public:
     using Base = AesBase;
     Aes() = delete;
@@ -78,29 +98,15 @@ public:
     template <Mode M1 = M, typename = std::enable_if_t<M1 == Mode::ecb>>
     explicit Aes(BytesView secret_key) : Base(SecretKey(secret_key)) {}
 
-    template <Mode M1, Bits B1>
-    Aes(const Aes<M1, B1>& other) : Base(other) {}
+    Aes(const Aes&) = default;
 
-    template <Mode M1, Bits B1>
-    Aes(Aes<M1, B1>&& other) noexcept : Base(std::move(other)) {}
+    Aes(Aes&&) noexcept = default;
 
     ~Aes() = default;
 
-    template <Mode M1, Bits B1>
-    Aes& operator=(const Aes<M1, B1>& rhs) {
-        if (std::addressof(rhs) != this) {
-            static_cast<Base&>(*this) = rhs;
-        }
-        return *this;
-    }
+    Aes& operator=(const Aes&) = default;
 
-    template <Mode M1, Bits B1>
-    Aes& operator=(Aes<M1, B1>&& rhs) noexcept {
-        if (std::addressof(rhs) != this) {
-            static_cast<Base&>(*this) = std::move(rhs);
-        }
-        return *this;
-    }
+    Aes& operator=(Aes&&) noexcept = default;
 
     std::optional<ByteVec> Encrypt(BytesView data) {
         return PerformCipher<Crypto::enc>(data, key_, iv_);
@@ -132,6 +138,11 @@ private:
     template <Crypto Op>
     std::optional<ByteVec> PerformCipher(BytesView data, BytesView secret_key,
                                          BytesView iv) {
+        if (data.Length() >
+            static_cast<size_t>(std::numeric_limits<int>::max())) {
+            return std::nullopt;
+        }
+
         auto ctx = detail::MakeSmartCtx(EVP_CIPHER_CTX_new());
         if (!ctx) {
             return std::nullopt;
@@ -154,7 +165,8 @@ private:
 
             int update_out_len = 0;
             if (!EVP_EncryptUpdate(ctx.get(), bytes.data(), &update_out_len,
-                                   data.Data(), data.Length())) {
+                                   data.Data(),
+                                   static_cast<int>(data.Length()))) {
                 return std::nullopt;
             }
 
@@ -188,7 +200,8 @@ private:
             if constexpr (M == Mode::gcm) {
                 if (!EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
                                        data.Data(),
-                                       data.Length() - k_tag_len)) {
+                                       static_cast<int>(data.Length() -
+                                                        k_tag_len))) {
                     return std::nullopt;
                 }
 
@@ -200,7 +213,8 @@ private:
                 }
             } else {
                 if (!EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
-                                       data.Data(), data.Length())) {
+                                       data.Data(),
+                                       static_cast<int>(data.Length()))) {
                     return std::nullopt;
                 }
             }
