@@ -3,7 +3,8 @@
 #include <openssl/evp.h>
 #include <openssl/types.h>
 
-#include <cctype>
+#include <algorithm>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -55,7 +56,7 @@ struct Base64Impl {
         return *this;
     }
 
-    virtual Base64::Status Update(BytesView stream) = 0;
+    virtual Status Update(BytesView stream) = 0;
 
     virtual std::string Out() = 0;
 
@@ -68,16 +69,21 @@ struct Base64Impl {
 struct EncImpl : public Base64Impl {
     using Base64Impl::Base64Impl;
 
-    Base64::Status Update(BytesView stream) override {
+    Status Update(BytesView stream) override {
+        if (stream.Length() >
+            static_cast<size_t>(std::numeric_limits<int>::max())) {
+            return Status::error;
+        }
         auto cur_insert_pos = out_.size();
-        out_.resize(out_.size() + blk_size_);
+        const auto required = stream.Length() * 2 + 80;
+        out_.resize(out_.size() + std::max(blk_size_, required));
         int len = 0;
         if (!EVP_EncodeUpdate(
                 ctx_.get(),
                 reinterpret_cast<Byte*>(out_.data() + cur_insert_pos), &len,
-                stream.Data(), stream.Length())) {
+                stream.Data(), static_cast<int>(stream.Length()))) {
             out_.resize(cur_insert_pos);
-            return Base64::Status::error;
+            return Status::error;
         }
 
         out_.resize(cur_insert_pos + len);
@@ -90,12 +96,12 @@ struct EncImpl : public Base64Impl {
             }
         }
 
-        return Base64::Status::good;
+        return Status::good;
     }
 
     std::string Out() override {
         auto cur_insert_pos = out_.size();
-        out_.resize(out_.size() + blk_size_);
+        out_.resize(out_.size() + std::max<size_t>(blk_size_, 80));
         int len = 0;
         EVP_EncodeFinal(ctx_.get(),
                         reinterpret_cast<Byte*>(out_.data() + cur_insert_pos),
@@ -118,31 +124,30 @@ struct EncImpl : public Base64Impl {
 struct DecImpl : public Base64Impl {
     using Base64Impl::Base64Impl;
 
-    Base64::Status Update(BytesView stream) override {
+    Status Update(BytesView stream) override {
+        if (stream.Length() >
+            static_cast<size_t>(std::numeric_limits<int>::max())) {
+            return Status::error;
+        }
         auto cur_insert_pos = out_.size();
-        out_.resize(out_.size() + blk_size_);
+        out_.resize(out_.size() + std::max(blk_size_, stream.Length() + 80));
         int len = 0;
-        if (!EVP_DecodeUpdate(
+        if (EVP_DecodeUpdate(
                 ctx_.get(),
                 reinterpret_cast<Byte*>(out_.data() + cur_insert_pos), &len,
-                stream.Data(), stream.Length())) {
+                stream.Data(), static_cast<int>(stream.Length())) < 0) {
             out_.resize(cur_insert_pos);
-            return Base64::Status::error;
-        }
-
-        size_t index = stream.Length();
-        while (len > 0 && index > 0 && stream[index] == '=') {
-            --len;
+            return Status::error;
         }
 
         out_.resize(cur_insert_pos + len);
 
-        return Base64::Status::good;
+        return Status::good;
     }
 
     std::string Out() override {
         auto cur_insert_pos = out_.size();
-        out_.resize(out_.size() + blk_size_);
+        out_.resize(out_.size() + std::max<size_t>(blk_size_, 80));
         int len = 0;
         EVP_DecodeFinal(ctx_.get(),
                         reinterpret_cast<Byte*>(out_.data() + cur_insert_pos),
@@ -162,6 +167,9 @@ Base64::Base64(Crypto codec, bool mime, size_t blk_size) {
 Base64::~Base64() {}
 
 std::optional<std::string> Base64::Encode(BytesView plain) {
+    if (plain.Length() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+        return std::nullopt;
+    }
     std::string out(1 + (4 * (plain.Length() + 2) / 3), 0);
     auto len = EVP_EncodeBlock(reinterpret_cast<Byte*>(out.data()),
                                plain.Data(), plain.Length());
@@ -171,7 +179,10 @@ std::optional<std::string> Base64::Encode(BytesView plain) {
 
 std::optional<std::string> Base64::Decode(BytesView b64) {
     if (b64.Empty()) {
-        return {};
+        return std::string{};
+    }
+    if (b64.Length() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+        return std::nullopt;
     }
 
     std::string out(b64.Length(), 0);
@@ -200,6 +211,7 @@ Base64& Base64::Init(Crypto codec, bool mime, size_t blk_size) {
     }
 
     EVP_EncodeInit(impl_->ctx_.get());
+    status_ = Status::good;
 
     return *this;
 }
@@ -225,5 +237,5 @@ std::string Base64::Out() {
     return impl_->Out();
 }
 
-Base64::Status Base64::GetStatus() const noexcept { return status_; }
+Status Base64::GetStatus() const noexcept { return status_; }
 }  // namespace ckit::codec

@@ -16,9 +16,13 @@ namespace detail {
 struct Base64Impl;
 }
 
-struct Base64 {
-    enum class Status { good, error, over };
+enum class Status { good, error, over };
 
+class Base64 {
+    std::unique_ptr<detail::Base64Impl> impl_;
+    Status status_{Status::good};
+
+public:
     explicit Base64(Crypto codec, bool mime = false, size_t blk_size = 1024);
 
     Base64(const Base64&) = delete;
@@ -46,8 +50,6 @@ struct Base64 {
     Status GetStatus() const noexcept;
 
 private:
-    std::unique_ptr<detail::Base64Impl> impl_;
-    Status status_{Status::good};
 };
 
 template <char DELIM = 0>
@@ -56,6 +58,23 @@ class Hex {
                     (DELIM >= 'a' && DELIM <= 'f') ||
                     (DELIM >= 'A' && DELIM <= 'F')),
                   "delimiter cannot be in hex character range");
+
+    std::string prefix_{};
+    Character ctrl_{Character::upper};
+
+    Byte ToHexCharacter(Byte n) const noexcept {
+        return n < 10 ? '0' + n
+                      : (ctrl_ == Character::upper ? 'A' : 'a') + n - 10;
+    }
+
+    Byte FromHexCharacter(Byte n) const noexcept {
+        return n > '9' ? n + 10 - 'A' : n - '0';
+    }
+
+    bool IsHexCharacter(Byte n) const noexcept {
+        return (n >= '0' && n <= '9') || (n >= 'a' && n <= 'f') ||
+               (n >= 'A' && n <= 'F');
+    }
 
 public:
     Hex() = default;
@@ -69,6 +88,9 @@ public:
 
     std::string Encode(BytesView bytes) {
         std::string result(prefix_);
+        if (bytes.Empty()) {
+            return result;
+        }
         if constexpr (DELIM) {
             result.resize(prefix_.size() + (bytes.Length() * 3 - 1));
         } else {
@@ -97,7 +119,7 @@ public:
             }
         }
 
-        std::string result(bytes.Length() * 3, 0);
+        std::string result((bytes.Length() - index + 1) / 2, 0);
         size_t count = 0;
         uint32_t parse_status = 0;
         Byte parse_ch{};
@@ -119,7 +141,11 @@ public:
                     result[count++] = parse_ch;
                     break;
                 case 2:
-                    if (IsHexCharacter(byte)) {
+                    if constexpr (DELIM) {
+                        if (byte != static_cast<Byte>(DELIM)) {
+                            return {};
+                        }
+                    } else {
                         ++parse_status;
                         continue;
                     }
@@ -131,27 +157,17 @@ public:
             ++index;
         }
 
+        if constexpr (DELIM) {
+            if (count > 0 && parse_status % 3 != 2) {
+                return {};
+            }
+        } else if (parse_status % 3 == 1) {
+            return {};
+        }
+
         result.resize(count);
         return result;
     }
-
-private:
-    Byte ToHexCharacter(Byte n) const noexcept {
-        return n < 10 ? '0' + n
-                      : (ctrl_ == Character::upper ? 'A' : 'a') + n - 10;
-    }
-
-    Byte FromHexCharacter(Byte n) const noexcept {
-        return n > '9' ? n + 10 - 'A' : n - '0';
-    }
-
-    bool IsHexCharacter(Byte n) const noexcept {
-        return (n >= '0' && n <= '9') || (n >= 'a' && n <= 'f') ||
-               (n >= 'A' && n <= 'F');
-    }
-
-    std::string prefix_{};
-    Character ctrl_{Character::upper};
 };
 }  // namespace codec
 
