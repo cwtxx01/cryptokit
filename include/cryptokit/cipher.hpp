@@ -16,8 +16,10 @@
 
 namespace ckit {
 namespace cipher {
+/// 支持的 AES 工作模式。
 enum class Mode : char { gcm, ecb, cbc };
 
+/// AES 密钥长度；枚举值以字节数表示。
 enum class Bits : int { k128 = 128 / 8, k192 = 192 / 8, k256 = 256 / 8 };
 
 namespace detail {
@@ -76,15 +78,19 @@ private:
 }  // namespace detail
 
 /**
- * @brief 基于OpenSSL库中EVP高级抽象层的Aes对称加密算法对象封装,
- * 具体算法严格使用OpenSSL的内部推荐值，如,
- * 限制KEY的长度严格匹配,
- * IV的长度CBC模式下是16，GCM模式下是12,
- * GCM模式的TAG长度必须为16
+ * @brief 基于 OpenSSL EVP 的 AES 加解密器。
  *
- * @tparam M 模式枚举值
- * @tparam B 密钥长度枚举值
- **/
+ * 密钥长度必须与 @p B 严格匹配。CBC 使用 16 字节 IV，GCM 使用 OpenSSL
+ * 为所选算法报告的 IV 长度（当前为 12 字节）；ECB 不使用 IV。GCM 密文的
+ * 最后 16 字节是认证标签，Decrypt() 会验证该标签。CBC 和 ECB 使用 OpenSSL
+ * 默认的 PKCS#7 填充，不提供完整性认证。
+ *
+ * 对象保存密钥与 IV 的副本，析构和覆盖赋值时会清理原密钥内存。同一密钥下
+ * 每次 GCM 加密必须使用唯一 IV，通常应为每条消息创建新对象。
+ *
+ * @tparam M AES 工作模式。
+ * @tparam B AES 密钥长度。
+ */
 template <Mode M, Bits B>
 class Aes : private detail::AesBase {
 public:
@@ -92,10 +98,18 @@ public:
     Aes() = delete;
 
     template <Mode M1 = M, typename = std::enable_if_t<M1 != Mode::ecb>>
+    /**
+     * @brief 构造 CBC 或 GCM 加解密器。
+     * @throws std::runtime_error 密钥或 IV 长度不符合所选算法要求。
+     */
     explicit Aes(BytesView secret_key, BytesView iv)
         : Base(SecretKey(secret_key), InitializationVector(iv)) {}
 
     template <Mode M1 = M, typename = std::enable_if_t<M1 == Mode::ecb>>
+    /**
+     * @brief 构造 ECB 加解密器。
+     * @throws std::runtime_error 密钥长度不符合所选算法要求。
+     */
     explicit Aes(BytesView secret_key) : Base(SecretKey(secret_key)) {}
 
     Aes(const Aes&) = default;
@@ -108,10 +122,20 @@ public:
 
     Aes& operator=(Aes&&) noexcept = default;
 
+    /**
+     * @brief 加密输入数据。
+     * @return 成功时返回密文；GCM 结果末尾附加 16 字节认证标签，失败时返回
+     * std::nullopt。
+     */
     std::optional<ByteVec> Encrypt(BytesView data) {
         return PerformCipher<Crypto::enc>(data, key_, iv_);
     }
 
+    /**
+     * @brief 解密输入数据。
+     * @return 成功时返回明文；输入无效、填充错误或 GCM 认证失败时返回
+     * std::nullopt。
+     */
     std::optional<ByteVec> Decrypt(BytesView data) {
         return PerformCipher<Crypto::dec>(data, key_, iv_);
     }

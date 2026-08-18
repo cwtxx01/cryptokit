@@ -7,8 +7,10 @@
 
 namespace ckit {
 
+/// 指定流式编解码操作的方向。
 enum class Crypto : bool { enc, dec };
 
+/// 指定文本编码输出使用大写或小写字符。
 enum class Character : bool { upper, lower };
 
 namespace bio {
