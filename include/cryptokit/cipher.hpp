@@ -8,7 +8,6 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
-#include <vector>
 
 #include "common.hpp"
 #include "cryptokit/byte_view.hpp"
@@ -29,13 +28,17 @@ inline SmartCtx MakeSmartCtx(EVP_CIPHER_CTX* ctx) {
 }
 
 struct AesBase {
+    ByteVec key_;
+    ByteVec iv_;
+
     AesBase() = default;
 
     AesBase(BytesView key, BytesView iv)
-        : key_(key.data(), key.data() + key.size()),
-          iv_(iv.data(), iv.data() + iv.size()) {}
+        : key_(key.Data(), key.Data() + key.Length()),
+          iv_(iv.Data(), iv.Data() + iv.Length()) {}
 
-    AesBase(BytesView key) : key_(key.data(), key.data() + key.size()), iv_() {}
+    AesBase(BytesView key)
+        : key_(key.Data(), key.Data() + key.Length()), iv_() {}
 
     AesBase(const AesBase&) = default;
 
@@ -46,9 +49,6 @@ struct AesBase {
     AesBase& operator=(const AesBase&) = default;
 
     AesBase& operator=(AesBase&&) noexcept = default;
-
-    std::vector<Byte> key_;
-    std::vector<Byte> iv_;
 };
 }  // namespace detail
 
@@ -102,26 +102,26 @@ public:
         return *this;
     }
 
-    std::optional<std::vector<Byte>> Encrypt(BytesView data) {
+    std::optional<ByteVec> Encrypt(BytesView data) {
         return PerformCipher<Crypto::enc>(data, key_, iv_);
     }
 
-    std::optional<std::vector<Byte>> Decrypt(BytesView data) {
+    std::optional<ByteVec> Decrypt(BytesView data) {
         return PerformCipher<Crypto::dec>(data, key_, iv_);
     }
 
 private:
     BytesView SecretKey(BytesView key) {
-        if (key.size() != static_cast<size_t>(B)) {
+        if (key.Length() != static_cast<size_t>(B)) {
             throw std::runtime_error(
-                "secret key length " + std::to_string(key.size()) +
+                "secret key length " + std::to_string(key.Length()) +
                 " vs required " + std::to_string(static_cast<size_t>(B)));
         }
         return key;
     }
 
     BytesView InitializationVector(BytesView iv) {
-        if (iv.size() != EVP_CIPHER_iv_length(GetCipher(M, B))) {
+        if (iv.Length() != EVP_CIPHER_iv_length(GetCipher(M, B))) {
             throw std::runtime_error(
                 "iv length must be " +
                 std::to_string(EVP_CIPHER_iv_length(GetCipher(M, B))));
@@ -130,9 +130,8 @@ private:
     }
 
     template <Crypto Op>
-    std::optional<std::vector<Byte>> PerformCipher(BytesView data,
-                                                   BytesView secret_key,
-                                                   BytesView iv) {
+    std::optional<ByteVec> PerformCipher(BytesView data, BytesView secret_key,
+                                         BytesView iv) {
         auto ctx = detail::MakeSmartCtx(EVP_CIPHER_CTX_new());
         if (!ctx) {
             return std::nullopt;
@@ -145,17 +144,17 @@ private:
 
         constexpr unsigned char k_tag_len = 16;
 
-        std::vector<Byte> bytes(data.size() + EVP_MAX_BLOCK_LENGTH + k_tag_len);
+        ByteVec bytes(data.Length() + EVP_MAX_BLOCK_LENGTH + k_tag_len);
 
         if constexpr (Op == Crypto::enc) {  // 加密
             if (!EVP_EncryptInit_ex(ctx.get(), cipher, nullptr,
-                                    secret_key.data(), iv.data())) {
+                                    secret_key.Data(), iv.Data())) {
                 return std::nullopt;
             }
 
             int update_out_len = 0;
             if (!EVP_EncryptUpdate(ctx.get(), bytes.data(), &update_out_len,
-                                   data.data(), data.size())) {
+                                   data.Data(), data.Length())) {
                 return std::nullopt;
             }
 
@@ -176,23 +175,24 @@ private:
                 bytes.resize(update_out_len + final_out_len);
             }
         } else {  // 解密
-            if (data.size() < k_tag_len) {
+            if (data.Length() < k_tag_len) {
                 return std::nullopt;
             }
 
             if (!EVP_DecryptInit_ex(ctx.get(), cipher, nullptr,
-                                    secret_key.data(), iv.data())) {
+                                    secret_key.Data(), iv.Data())) {
                 return std::nullopt;
             }
 
             int update_out_len = 0;
             if constexpr (M == Mode::gcm) {
                 if (!EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
-                                       data.data(), data.size() - k_tag_len)) {
+                                       data.Data(),
+                                       data.Length() - k_tag_len)) {
                     return std::nullopt;
                 }
 
-                auto tag_idx = data.data() + data.size() - k_tag_len;
+                auto tag_idx = data.Data() + data.Length() - k_tag_len;
                 if (!EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG,
                                          k_tag_len,
                                          const_cast<Byte*>(tag_idx))) {
@@ -200,7 +200,7 @@ private:
                 }
             } else {
                 if (!EVP_DecryptUpdate(ctx.get(), bytes.data(), &update_out_len,
-                                       data.data(), data.size())) {
+                                       data.Data(), data.Length())) {
                     return std::nullopt;
                 }
             }

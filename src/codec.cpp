@@ -75,7 +75,7 @@ struct EncImpl : public Base64Impl {
         if (!EVP_EncodeUpdate(
                 ctx_.get(),
                 reinterpret_cast<Byte*>(out_.data() + cur_insert_pos), &len,
-                stream.data(), stream.size())) {
+                stream.Data(), stream.Size())) {
             out_.resize(cur_insert_pos);
             return Base64::Status::error;
         }
@@ -125,12 +125,12 @@ struct DecImpl : public Base64Impl {
         if (!EVP_DecodeUpdate(
                 ctx_.get(),
                 reinterpret_cast<Byte*>(out_.data() + cur_insert_pos), &len,
-                stream.data(), stream.size())) {
+                stream.Data(), stream.Size())) {
             out_.resize(cur_insert_pos);
             return Base64::Status::error;
         }
 
-        size_t index = stream.size();
+        size_t index = stream.Size();
         while (len > 0 && index > 0 && stream[index] == '=') {
             --len;
         }
@@ -162,26 +162,26 @@ Base64::Base64(Crypto codec, bool mime, size_t blk_size) {
 Base64::~Base64() {}
 
 std::optional<std::string> Base64::Encode(BytesView plain) {
-    std::string out(1 + (4 * (plain.size() + 2) / 3), 0);
+    std::string out(1 + (4 * (plain.Size() + 2) / 3), 0);
     auto len = EVP_EncodeBlock(reinterpret_cast<Byte*>(out.data()),
-                               plain.data(), plain.size());
+                               plain.Data(), plain.Size());
     out.resize(len);
     return out;
 }
 
 std::optional<std::string> Base64::Decode(BytesView b64) {
-    if (b64.empty()) {
+    if (b64.Empty()) {
         return {};
     }
 
-    std::string out(b64.size(), 0);
-    auto len = EVP_DecodeBlock(reinterpret_cast<Byte*>(out.data()), b64.data(),
-                               b64.size());
+    std::string out(b64.Size(), 0);
+    auto len = EVP_DecodeBlock(reinterpret_cast<Byte*>(out.data()), b64.Data(),
+                               b64.Size());
     if (len < 0) {
         return std::nullopt;
     }
 
-    auto index = b64.size();
+    auto index = b64.Size();
     while (index > 0 && b64[--index] == '=') {
         --len;
     }

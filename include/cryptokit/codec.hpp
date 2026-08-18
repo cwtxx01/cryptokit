@@ -10,7 +10,6 @@
 #include "cryptokit/byte_view.hpp"
 #include "cryptokit/common.hpp"
 
-
 namespace ckit {
 namespace codec {
 namespace detail {
@@ -71,9 +70,9 @@ public:
     std::string Encode(BytesView bytes) {
         std::string result(prefix_);
         if constexpr (DELIM) {
-            result.resize(prefix_.size() + (bytes.size() * 3 - 1));
+            result.resize(prefix_.size() + (bytes.Length() * 3 - 1));
         } else {
-            result.resize(prefix_.size() + (bytes.size() << 1));
+            result.resize(prefix_.size() + (bytes.Length() << 1));
         }
 
         auto cur_pos = prefix_.size();
@@ -93,16 +92,16 @@ public:
     std::string Decode(BytesView bytes) {
         size_t index = 0;
         for (; index < prefix_.size(); ++index) {
-            if (index >= bytes.size() || bytes[index] != prefix_[index]) {
+            if (index >= bytes.Length() || bytes[index] != prefix_[index]) {
                 return {};
             }
         }
 
-        std::string result(bytes.size() * 3, 0);
+        std::string result(bytes.Length() * 3, 0);
         size_t count = 0;
         uint32_t parse_status = 0;
         Byte parse_ch{};
-        for (; index < bytes.size();) {
+        for (; index < bytes.Length();) {
             Byte byte = std::toupper(bytes[index]);
             switch (parse_status % 3) {
                 case 0:

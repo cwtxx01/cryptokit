@@ -6,13 +6,18 @@ namespace ckit {
 BytesView::BytesView(const std::string& str)
     : data_(reinterpret_cast<const Byte*>(str.data())), len_(str.size()) {}
 
-BytesView::BytesView(const std::basic_string<Byte>& str)
+BytesView::BytesView(const ByteStr& str)
     : data_(str.data()), len_(str.size()) {}
+
+BytesView::BytesView(std::string_view sv)
+    : data_(reinterpret_cast<const Byte*>(sv.data())), len_(sv.length()) {}
+
+BytesView::BytesView(ByteStrView sv) : data_(sv.data()), len_(sv.length()) {}
 
 BytesView::BytesView(const std::vector<char>& vec)
     : data_(reinterpret_cast<const Byte*>(vec.data())), len_(vec.size()) {}
 
-BytesView::BytesView(const std::vector<Byte>& vec)
+BytesView::BytesView(const ByteVec& vec)
     : data_(vec.data()), len_(vec.size()) {}
 
 BytesView::BytesView(const char* buff, size_t n)

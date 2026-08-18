@@ -100,7 +100,7 @@ public:
 
     Digest& operator<<(BytesView text) {
         if (status_ == Status::good) {
-            if (!EVP_DigestUpdate(ctx_.get(), text.data(), text.size())) {
+            if (!EVP_DigestUpdate(ctx_.get(), text.Data(), text.Length())) {
                 status_ = Status::error;
             }
         }

@@ -4,12 +4,17 @@
 #include <array>
 #include <cstddef>
 #include <iterator>
-#include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace ckit {
 using Byte = unsigned char;
+using ByteVec = std::vector<Byte>;
+using ByteStr = std::basic_string<Byte>;
+using ByteStrView = std::basic_string_view<Byte>;
+template <size_t N>
+using ByteArr = std::array<Byte, N>;
 
 inline constexpr Byte ToByte(char ch) { return static_cast<Byte>(ch); }
 
@@ -21,11 +26,15 @@ public:
 
     BytesView(const std::string& str);
 
-    BytesView(const std::basic_string<Byte>& str);
+    BytesView(const ByteStr& str);
+
+    BytesView(std::string_view sv);
+
+    BytesView(ByteStrView sv);
 
     BytesView(const std::vector<char>& vec);
 
-    BytesView(const std::vector<Byte>& vec);
+    BytesView(const ByteVec& vec);
 
     BytesView(const char* buff, size_t n);
 
@@ -36,8 +45,7 @@ public:
         : data_(reinterpret_cast<const Byte*>(arr.data())), len_(arr.size()) {}
 
     template <size_t N>
-    BytesView(const std::array<Byte, N>& arr)
-        : data_(arr.data()), len_(arr.size()) {}
+    BytesView(const ByteArr<N>& arr) : data_(arr.data()), len_(arr.size()) {}
 
     template <typename T, size_t N>
     using RawArrCRef = const T (&)[N];
@@ -57,15 +65,15 @@ public:
 
     Byte operator[](size_t n) const { return data_[n]; }
 
-    constexpr const Byte* data() const noexcept { return data_; }
+    constexpr const Byte* Data() const noexcept { return data_; }
 
-    const char* char_view() const noexcept {
-        return reinterpret_cast<const char*>(data_);
+    std::string_view StrView() const noexcept {
+        return std::string_view(reinterpret_cast<const char*>(data_), len_);
     }
 
-    constexpr size_t size() const noexcept { return len_; }
+    constexpr size_t Length() const noexcept { return len_; }
 
-    constexpr bool empty() const noexcept { return len_ == 0; }
+    constexpr bool Empty() const noexcept { return len_ == 0; }
 
     struct Iterator {
         using iterator_category = std::random_access_iterator_tag;
