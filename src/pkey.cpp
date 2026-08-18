@@ -23,6 +23,10 @@ struct Pkey {
             EVP_PKEY_free(pointer_);
         }
     }
+
+    SmartCtx CreateCtx() const {
+        return MakeCtx(EVP_PKEY_CTX_new_from_pkey(nullptr, pointer_, nullptr));
+    }
 };
 
 }  // namespace
@@ -34,11 +38,29 @@ struct RsaPrivKey::Impl {
 
     bool IsOk() const noexcept { return pkey_.pointer_ != nullptr; }
 
+    std::optional<std::string> DoPem() const {
+        bio::SmartBio bio(BIO_new(BIO_s_mem()));
+        if (!bio) {
+            return std::nullopt;
+        }
+
+        if (PEM_write_bio_PrivateKey(bio.get(), pkey_.pointer_, nullptr,
+                                     nullptr, 0, nullptr, nullptr) != 1) {
+            return std::nullopt;
+        }
+
+        BUF_MEM* mem = nullptr;
+        BIO_get_mem_ptr(bio.get(), &mem);
+        if (!mem || !mem->data || !mem->length) {
+            return std::nullopt;
+        }
+        return std::string(mem->data, mem->length);
+    }
+
     std::optional<ByteVec> DoDecrypt(BytesView&& data, Padding padding,
                                      digest::Mode oaep,
                                      digest::Mode mgf1) const {
-        auto ctx = MakeCtx(
-            EVP_PKEY_CTX_new_from_pkey(nullptr, pkey_.pointer_, nullptr));
+        auto ctx = pkey_.CreateCtx();
 
         if (!ctx || EVP_PKEY_decrypt_init(ctx.get()) <= 0 ||
             EVP_PKEY_CTX_set_rsa_padding(ctx.get(),
@@ -72,8 +94,45 @@ struct RsaPrivKey::Impl {
         return buf;
     }
 
-    bool DoSign(BytesView data, Padding padding, digest::Mode digest,
-                digest::Mode mgf1, int saltlen) const {}
+    std::optional<ByteVec> DoSign(BytesView data, digest::Mode digest,
+                                  Padding padding, digest::Mode mgf1,
+                                  int saltlen) const {
+        auto md_ctx = digest::detail::MakeMdCtx();
+        if (!md_ctx) {
+            return std::nullopt;
+        }
+
+        EVP_PKEY_CTX* p_ctx = nullptr;
+
+        if (EVP_DigestSignInit(md_ctx.get(), &p_ctx, digest::detail::Md(digest),
+                               nullptr, pkey_.pointer_) <= 0 ||
+            EVP_PKEY_CTX_set_rsa_padding(p_ctx, static_cast<int>(padding)) <=
+                0) {
+            return std::nullopt;
+        }
+
+        if (padding == Padding::pss) {
+            if (EVP_PKEY_CTX_set_rsa_mgf1_md(p_ctx, digest::detail::Md(mgf1)) <=
+                    0 ||
+                EVP_PKEY_CTX_set_rsa_pss_saltlen(p_ctx, saltlen) <= 0) {
+                return std::nullopt;
+            }
+        }
+
+        size_t sig_len = 0;
+        if (EVP_DigestSign(md_ctx.get(), nullptr, &sig_len, data.Data(),
+                           data.Length()) <= 0) {
+            return std::nullopt;
+        }
+
+        ByteVec buf(sig_len);
+        if (EVP_DigestSign(md_ctx.get(), buf.data(), &sig_len, data.Data(),
+                           data.Length()) <= 0) {
+            return std::nullopt;
+        }
+        buf.resize(sig_len);
+        return buf;
+    }
 
     explicit Impl(Bits bits) {
         auto ctx = MakeCtx(EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr));
@@ -107,11 +166,28 @@ struct RsaPubKey::Impl {
 
     bool IsOk() const noexcept { return pkey_.pointer_ != nullptr; }
 
+    std::optional<std::string> DoPem() const {
+        bio::SmartBio bio(BIO_new(BIO_s_mem()));
+        if (!bio) {
+            return std::nullopt;
+        }
+
+        if (PEM_write_bio_PUBKEY(bio.get(), pkey_.pointer_) != 1) {
+            return std::nullopt;
+        }
+
+        BUF_MEM* mem = nullptr;
+        BIO_get_mem_ptr(bio.get(), &mem);
+        if (!mem || !mem->data || !mem->length) {
+            return std::nullopt;
+        }
+        return std::string(mem->data, mem->length);
+    }
+
     std::optional<ByteVec> DoEncrypt(BytesView&& data, Padding padding,
                                      digest::Mode oaep,
                                      digest::Mode mgf1) const {
-        auto ctx = MakeCtx(
-            EVP_PKEY_CTX_new_from_pkey(nullptr, pkey_.pointer_, nullptr));
+        auto ctx = pkey_.CreateCtx();
 
         if (!ctx || EVP_PKEY_encrypt_init(ctx.get()) <= 0 ||
             EVP_PKEY_CTX_set_rsa_padding(ctx.get(),
@@ -145,8 +221,35 @@ struct RsaPubKey::Impl {
         return buf;
     }
 
-    bool DoVerify(BytesView data, Padding padding, digest::Mode digest,
-                  digest::Mode mgf1, int saltlen) const {}
+    bool DoVerify(BytesView data, BytesView signature, digest::Mode digest,
+                  Padding padding, digest::Mode mgf1, int saltlen) const {
+        auto md_ctx = digest::detail::MakeMdCtx();
+        if (!md_ctx) {
+            return false;
+        }
+
+        EVP_PKEY_CTX* p_ctx = nullptr;
+
+        if (EVP_DigestVerifyInit(md_ctx.get(), &p_ctx,
+                                 digest::detail::Md(digest), nullptr,
+                                 pkey_.pointer_) <= 0 ||
+            EVP_PKEY_CTX_set_rsa_padding(p_ctx, static_cast<int>(padding)) <=
+                0) {
+            return false;
+        }
+
+        if (padding == Padding::pss) {
+            if (EVP_PKEY_CTX_set_rsa_mgf1_md(p_ctx, digest::detail::Md(mgf1)) <=
+                    0 ||
+                EVP_PKEY_CTX_set_rsa_pss_saltlen(p_ctx, saltlen) <= 0) {
+                return false;
+            }
+        }
+
+        return EVP_DigestVerify(md_ctx.get(), signature.Data(),
+                                signature.Length(), data.Data(),
+                                data.Length()) == 1;
+    }
 
     explicit Impl(BytesView&& pem) {
         bio::SmartBio bio(BIO_new_mem_buf(pem.Data(), pem.Length()));
@@ -204,10 +307,11 @@ std::optional<ByteVec> RsaPubKey::Encrypt(BytesView data, Padding padding,
                   : std::nullopt;
 }
 
-bool RsaPubKey::Verify(BytesView data, Padding padding, digest::Mode digest,
-                       digest::Mode mgf1, int saltlen) const {
-    return IsOk() ? impl_->DoVerify(std::move(data), padding, digest, mgf1,
-                                    saltlen)
+bool RsaPubKey::Verify(BytesView data, BytesView signature, Padding padding,
+                       digest::Mode digest, digest::Mode mgf1,
+                       int saltlen) const {
+    return IsOk() ? impl_->DoVerify(std::move(data), signature, digest, padding,
+                                    mgf1, saltlen)
                   : false;
 }
 
@@ -236,11 +340,12 @@ std::optional<ByteVec> RsaPrivKey::Decrypt(BytesView data, Padding padding,
                   : std::nullopt;
 }
 
-bool RsaPrivKey::Sign(BytesView data, Padding padding, digest::Mode digest,
-                      digest::Mode mgf1, int saltlen) const {
+std::optional<ByteVec> RsaPrivKey::Sign(BytesView data, digest::Mode digest,
+                                        Padding padding, digest::Mode mgf1,
+                                        int saltlen) const {
     return IsOk()
-               ? impl_->DoSign(std::move(data), padding, digest, mgf1, saltlen)
-               : false;
+               ? impl_->DoSign(std::move(data), digest, padding, mgf1, saltlen)
+               : std::nullopt;
 }
 
 bool RsaPrivKey::IsOk() const noexcept { return impl_ && impl_->IsOk(); }

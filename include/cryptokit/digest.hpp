@@ -55,6 +55,24 @@ inline SmartMd MakeMd(const char* provider) {
     return SmartMd(EVP_MD_fetch(nullptr, ToStrView(M).data(), provider));
 }
 
+inline const EVP_MD* Md(Mode m) {
+    switch (m) {
+        case Mode::md5:
+            return EVP_md5();
+        case Mode::sha1:
+            return EVP_sha1();
+        case Mode::sha224:
+            return EVP_sha224();
+        case Mode::sha256:
+            return EVP_sha256();
+        case Mode::sha384:
+            return EVP_sha384();
+        case Mode::sha512:
+            return EVP_sha512();
+    }
+    return nullptr;
+}
+
 using SmartMdCtx = std::unique_ptr<EVP_MD_CTX, MdCtxDeleter>;
 
 inline SmartMdCtx MakeMdCtx() { return SmartMdCtx(EVP_MD_CTX_new()); }
@@ -65,11 +83,8 @@ class Digest {
 public:
     enum class Status { good, error, over };
 
-    explicit Digest(std::string_view provider = {})
-        : md_(detail::MakeMd<M>(
-              provider.empty()
-                  ? nullptr
-                  : (std::string("provider=") + provider.data()).c_str())),
+    explicit Digest(std::string_view prop = {})
+        : md_(detail::MakeMd<M>(prop.empty() ? nullptr : prop.data())),
           ctx_(detail::MakeMdCtx()) {
         if (!EVP_DigestInit_ex(ctx_.get(), md_.get(), nullptr)) {
             status_ = Status::error;
@@ -83,12 +98,9 @@ public:
         return str;
     }
 
-    void Init(std::string_view provider = {}) {
+    void Init(std::string_view prop = {}) {
         md_.reset();
-        md_ = detail::MakeMd<M>(
-            provider.empty()
-                ? nullptr
-                : (std::string("provider=") + provider.data()).c_str());
+        md_ = detail::MakeMd<M>(prop.empty() ? nullptr : prop.data());
         ctx_.reset();
         ctx_ = detail::MakeMdCtx();
         if (!EVP_DigestInit_ex(ctx_.get(), md_.get(), nullptr)) {

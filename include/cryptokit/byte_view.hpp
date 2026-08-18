@@ -10,9 +10,13 @@
 
 namespace ckit {
 using Byte = unsigned char;
+
 using ByteVec = std::vector<Byte>;
+
 using ByteStr = std::basic_string<Byte>;
+
 using ByteStrView = std::basic_string_view<Byte>;
+
 template <size_t N>
 using ByteArr = std::array<Byte, N>;
 
@@ -27,10 +31,6 @@ public:
     BytesView(const std::string& str);
 
     BytesView(const ByteStr& str);
-
-    BytesView(std::string_view sv);
-
-    BytesView(ByteStrView sv);
 
     BytesView(const std::vector<char>& vec);
 

@@ -9,11 +9,6 @@ BytesView::BytesView(const std::string& str)
 BytesView::BytesView(const ByteStr& str)
     : data_(str.data()), len_(str.size()) {}
 
-BytesView::BytesView(std::string_view sv)
-    : data_(reinterpret_cast<const Byte*>(sv.data())), len_(sv.length()) {}
-
-BytesView::BytesView(ByteStrView sv) : data_(sv.data()), len_(sv.length()) {}
-
 BytesView::BytesView(const std::vector<char>& vec)
     : data_(reinterpret_cast<const Byte*>(vec.data())), len_(vec.size()) {}
 

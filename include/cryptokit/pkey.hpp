@@ -35,7 +35,8 @@ public:
         digest::Mode oaep = digest::Mode::sha256,
         digest::Mode mgf1 = digest::Mode::sha256) const;
 
-    bool Verify(BytesView data, Padding padding = Padding::pss,
+    bool Verify(BytesView data, BytesView signature,
+                Padding padding = Padding::pss,
                 digest::Mode digest = digest::Mode::sha256,
                 digest::Mode mgf1 = digest::Mode::sha256,
                 int saltlen = RSA_PSS_SALTLEN_DIGEST) const;
@@ -65,10 +66,11 @@ public:
         digest::Mode oaep = digest::Mode::sha256,
         digest::Mode mgf1 = digest::Mode::sha256) const;
 
-    bool Sign(BytesView data, Padding padding = Padding::pss,
-              digest::Mode digest = digest::Mode::sha256,
-              digest::Mode mgf1 = digest::Mode::sha256,
-              int saltlen = RSA_PSS_SALTLEN_DIGEST) const;
+    std::optional<ByteVec> Sign(BytesView data,
+                                digest::Mode digest = digest::Mode::sha256,
+                                Padding padding = Padding::pss,
+                                digest::Mode mgf1 = digest::Mode::sha256,
+                                int saltlen = RSA_PSS_SALTLEN_DIGEST) const;
 
     bool IsOk() const noexcept;
 
@@ -80,14 +82,8 @@ public:
 
     ~RsaPrivKey();
 };
-
-struct RsaPair {
-    RsaPrivKey priv_key;
-    RsaPubKey pub_key;
-};
 }  // namespace pkey
 
-using pkey::RsaPair;
 using pkey::RsaPrivKey;
 using pkey::RsaPubKey;
 }  // namespace ckit

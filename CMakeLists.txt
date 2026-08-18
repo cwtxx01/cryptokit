@@ -1,15 +1,28 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28)
 
-project(cryptokit LANGUAGES CXX)
+project(cryptokit 
+    VERSION 0.0.1
+    LANGUAGES C CXX
+)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-option(BUILD_UNIT_TESTS "Build unit tests" ON)
-option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+option(CRYPTOKIT_TEST "Build unit tests" ON)
+option(CRYPTOKIT_SHARED "Build shared libraries" OFF)
+option(CRYPTOKIT_INSTALL "Install cryptokit library" ON)
 
-add_library(cryptokit)
+if(CRYPTOKIT_SHARED)
+    add_library(cryptokit SHARED)
+    set_target_properties(cryptokit PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+    )
+else() 
+    add_library(cryptokit STATIC)
+endif()
+
 
 file(GLOB_RECURSE src_files CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/src/*.cpp
@@ -43,23 +56,20 @@ target_link_libraries(cryptokit PUBLIC
     OpenSSL::SSL
 )
 
-if(BUILD_SHARED_LIBS)
-    set_target_properties(cryptokit PROPERTIES
-        POSITION_INDEPENDENT_CODE ON
-    )
-endif()
 
-
-if(BUILD_UNIT_TESTS)
+if(CRYPTOKIT_TEST)
     enable_testing()
 
     include(FetchContent)
     FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/releases/download/v1.17.0/googletest-1.17.0.tar.gz
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        GTest
+        URL https://github.com/google/googletest/releases/download/v1.17.0/googletest-1.18.0.tar.gz
+        URL_HASH SHA256=6e3191c1455468b3fc35a417fb565c1c5071aee1b7e7f85e30cf48a98d37d8b5
+        EXCLUDE_FROM_ALL TRUE
+        SYSTEM
+        FIND_PACKAGE_ARGS
     )
-    FetchContent_MakeAvailable(googletest)
+    FetchContent_MakeAvailable(GTest)
 
     add_executable(cryptokit_ut)
 
@@ -78,3 +88,43 @@ if(BUILD_UNIT_TESTS)
     gtest_discover_tests(cryptokit_ut)
 endif()
 
+if(CRYPTOKIT_INSTALL)
+    include(GNUInstallDirs)
+
+    install(TARGETS cryptokit 
+        EXPORT cryptokitTarget
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} 
+    )
+
+    install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/" 
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+
+    install(EXPORT cryptokitTarget
+        FILE cryptokitTarget.cmake
+        NAMESPACE cryptokit::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cryptokit
+    )
+
+    include(CMakePackageConfigHelpers)
+
+    configure_package_config_file(
+        "${PROJECT_SOURCE_DIR}/cmake/cryptokitConfig.cmake.in"
+        "${PROJECT_BINARY_DIR}/cryptokitConfig.cmake"
+        INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cryptokit"
+    )
+
+    write_basic_package_version_file(
+        "${PROJECT_BINARY_DIR}/cryptokitConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
+    install(FILES
+        "${PROJECT_BINARY_DIR}/cryptokitConfig.cmake"
+        "${PROJECT_BINARY_DIR}/cryptokitConfigVersion.cmake"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cryptokit"
+    )
+
+endif()
