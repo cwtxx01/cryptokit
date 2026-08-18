@@ -184,6 +184,23 @@ std::optional<std::string> Base64::Decode(BytesView b64) {
     if (b64.Length() > static_cast<size_t>(std::numeric_limits<int>::max())) {
         return std::nullopt;
     }
+    if (b64.Length() % 4 != 0) {
+        return std::nullopt;
+    }
+
+    size_t padding = 0;
+    while (padding < b64.Length() &&
+           b64[b64.Length() - padding - 1] == '=') {
+        ++padding;
+    }
+    if (padding > 2) {
+        return std::nullopt;
+    }
+    for (size_t i = 0; i < b64.Length() - padding; ++i) {
+        if (b64[i] == '=') {
+            return std::nullopt;
+        }
+    }
 
     std::string out(b64.Length(), 0);
     auto len = EVP_DecodeBlock(reinterpret_cast<Byte*>(out.data()), b64.Data(),
@@ -192,10 +209,7 @@ std::optional<std::string> Base64::Decode(BytesView b64) {
         return std::nullopt;
     }
 
-    auto index = b64.Length();
-    while (index > 0 && b64[--index] == '=') {
-        --len;
-    }
+    len -= static_cast<int>(padding);
 
     out.resize(len);
     return out;

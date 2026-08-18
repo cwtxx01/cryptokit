@@ -2,7 +2,21 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cstddef>
+#include <string>
+
 #include "cryptokit/common.hpp"
+
+namespace {
+std::string MakeBinaryData(size_t size) {
+    std::string data(size, '\0');
+    for (size_t i = 0; i < size; ++i) {
+        data[i] = static_cast<char>((i * 131 + 17) & 0xff);
+    }
+    return data;
+}
+}  // namespace
 
 TEST(Base64Test, encode_decode) {
     std::string plain = "abcdefg";
@@ -143,6 +157,75 @@ TEST(Base64Test, supports_empty_input_and_reinitialization) {
     EXPECT_EQ((codec << std::string("second")).Out(), "c2Vjb25k");
 }
 
+TEST(Base64Test, round_trips_binary_data_at_encoding_boundaries) {
+    constexpr std::array<size_t, 16> sizes{
+        0, 1, 2, 3, 4, 47, 48, 49, 63, 64, 65, 1023, 1024, 1025, 4095, 4096};
+
+    for (const auto size : sizes) {
+        SCOPED_TRACE(size);
+        const auto plain = MakeBinaryData(size);
+        const auto encoded = ckit::Base64::Encode(plain);
+        ASSERT_TRUE(encoded.has_value());
+        const auto decoded = ckit::Base64::Decode(*encoded);
+        ASSERT_TRUE(decoded.has_value());
+        EXPECT_EQ(*decoded, plain);
+    }
+}
+
+TEST(Base64Test, stream_round_trips_large_binary_input_in_one_update) {
+    const auto plain = MakeBinaryData(1024 * 1024 + 3);
+
+    ckit::Base64 encoder(ckit::Crypto::enc, false, 1);
+    const auto encoded = (encoder << plain).Out();
+    ASSERT_EQ(encoder.GetStatus(), ckit::codec::Status::over);
+
+    ckit::Base64 decoder(ckit::Crypto::dec, false, 1);
+    const auto decoded = (decoder << encoded).Out();
+    EXPECT_EQ(decoder.GetStatus(), ckit::codec::Status::over);
+    EXPECT_EQ(decoded, plain);
+}
+
+TEST(Base64Test, stream_round_trips_when_updated_one_byte_at_a_time) {
+    const auto plain = MakeBinaryData(257);
+    ckit::Base64 encoder(ckit::Crypto::enc, false, 1);
+    for (const char byte : plain) {
+        encoder << ckit::BytesView(&byte, 1);
+        ASSERT_EQ(encoder.GetStatus(), ckit::codec::Status::good);
+    }
+    const auto encoded = encoder.Out();
+
+    ckit::Base64 decoder(ckit::Crypto::dec, false, 1);
+    for (const char byte : encoded) {
+        decoder << ckit::BytesView(&byte, 1);
+        ASSERT_EQ(decoder.GetStatus(), ckit::codec::Status::good);
+    }
+    EXPECT_EQ(decoder.Out(), plain);
+}
+
+TEST(Base64Test, rejects_malformed_static_and_stream_input) {
+    for (const std::string invalid :
+         {"!", "abc", "abc!", "====", "A===", "Z=m9", "Zm9v*"}) {
+        SCOPED_TRACE(invalid);
+        EXPECT_FALSE(ckit::Base64::Decode(invalid).has_value());
+    }
+
+    ckit::Base64 decoder(ckit::Crypto::dec);
+    decoder << std::string("Zm9v*===");
+    EXPECT_EQ(decoder.GetStatus(), ckit::codec::Status::error);
+    EXPECT_TRUE(decoder.Out().empty());
+}
+
+TEST(Base64Test, finalization_is_idempotent_and_ignores_late_input) {
+    ckit::Base64 encoder(ckit::Crypto::enc);
+    encoder << std::string("first");
+    EXPECT_EQ(encoder.Out(), "Zmlyc3Q=");
+    EXPECT_EQ(encoder.GetStatus(), ckit::codec::Status::over);
+
+    encoder << std::string("ignored");
+    EXPECT_EQ(encoder.GetStatus(), ckit::codec::Status::over);
+    EXPECT_TRUE(encoder.Out().empty());
+}
+
 TEST(HexTest, non_delim_with_upper) {
     std::string plain = "0123456789abcdefghigklmnopqrstuvwxyz";
     ckit::Hex hex(ckit::Character::upper);
@@ -252,4 +335,26 @@ TEST(HexTest, handles_empty_and_rejects_malformed_input) {
     EXPECT_TRUE(hex.Decode(std::string("AA-BB")).empty());
     EXPECT_TRUE(hex.Decode(std::string("AA:")).empty());
     EXPECT_EQ(hex.Decode(std::string("AA:BB")), std::string("\xAA\xBB", 2));
+}
+
+TEST(HexTest, round_trips_every_byte_value) {
+    std::string plain(256, '\0');
+    for (size_t i = 0; i < plain.size(); ++i) {
+        plain[i] = static_cast<char>(i);
+    }
+
+    ckit::Hex<> compact(ckit::Character::lower, "0x");
+    EXPECT_EQ(compact.Decode(compact.Encode(plain)), plain);
+
+    ckit::Hex<COLON> delimited(ckit::Character::upper, "hex:");
+    EXPECT_EQ(delimited.Decode(delimited.Encode(plain)), plain);
+}
+
+TEST(HexTest, validates_prefix_and_mixed_case_input) {
+    ckit::Hex<> prefixed("0x");
+    EXPECT_TRUE(prefixed.Decode(std::string{}).empty());
+    EXPECT_TRUE(prefixed.Decode(std::string("0")).empty());
+    EXPECT_TRUE(prefixed.Decode(std::string("1a2b")).empty());
+    EXPECT_EQ(prefixed.Decode(std::string("0xAaFf")),
+              std::string("\xAA\xFF", 2));
 }
