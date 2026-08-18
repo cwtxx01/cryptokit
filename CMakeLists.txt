@@ -38,7 +38,7 @@ target_include_directories(cryptokit PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-target_compile_features(cryptokit PRIVATE cxx_std_17)
+target_compile_features(cryptokit PUBLIC cxx_std_17)
 
 target_compile_options(cryptokit PRIVATE
     $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall>
@@ -53,7 +53,6 @@ find_package(OpenSSL REQUIRED)
 
 target_link_libraries(cryptokit PUBLIC
     OpenSSL::Crypto
-    OpenSSL::SSL
 )
 
 
