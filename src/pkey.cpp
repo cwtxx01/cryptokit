@@ -153,7 +153,7 @@ struct RsaPrivKey::Impl {
     }
 
     explicit Impl(const fs::path& path) {
-        bio::SmartBio bio(BIO_new_file(path.c_str(), "rb"));
+        bio::SmartBio bio(BIO_new_file(path.string().c_str(), "rb"));
         if (bio) {
             pkey_.pointer_ =
                 PEM_read_bio_PrivateKey(bio.get(), nullptr, nullptr, nullptr);
@@ -260,7 +260,7 @@ struct RsaPubKey::Impl {
     }
 
     explicit Impl(const Pkey& pkey) {
-        const int der_len = i2d_PublicKey(pkey.pointer_, nullptr);
+        const int der_len = i2d_PUBKEY(pkey.pointer_, nullptr);
         if (der_len <= 0) {
             return;
         }
@@ -275,7 +275,7 @@ struct RsaPubKey::Impl {
     }
 
     explicit Impl(const fs::path& path) {
-        bio::SmartBio bio(BIO_new_file(path.c_str(), "rb"));
+        bio::SmartBio bio(BIO_new_file(path.string().c_str(), "rb"));
         if (bio) {
             pkey_.pointer_ =
                 PEM_read_bio_PUBKEY(bio.get(), nullptr, nullptr, nullptr);
